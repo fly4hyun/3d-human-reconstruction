@@ -1,0 +1,136 @@
+
+
+
+
+
+
+## 음...
+## measure 할 때 .max로 나눠줘야함
+
+source activate icon
+
+
+python LVD_gen.py --model LVD_images_wmask_SMPL --name LVD_images_wmask_SMPL
+python human_measure.py
+
+python -m apps.infer -cfg ./configs/icon-filter.yaml -gpu 0 -in_dir ./examples -out_dir ./results -export_video -loop_smpl 100 -loop_cloth 200 -hps_type pymaf
+
+
+
+pip install mediapipe
+pip install opencv-python==4.5.5.64
+pip install tensorboardX
+pip install trimesh
+pip install pyrender
+
+
+
+pip install pywavefront
+pip install shapely
+
+pip install flask
+pip install flask_cors
+pip install git+https://github.com/YuliangXiu/rembg.git --use-deprecated=legacy-resolver
+
+
+
+
+
+pip install git+https://github.com/YuliangXiu/rembg.git --use-deprecated=legacy-resolver
+python FB_apps.py
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            loop_cloth = tqdm(range(args.loop_cloth))
+
+            for i in loop_cloth:
+
+
+                optimizer_cloth.zero_grad()
+
+                deformed_verts, stiffness, rigid = affine_model(
+                    verts_refine.to(device), return_stiff = True
+                )
+                mesh_pr = mesh_pr.update_padded(deformed_verts)
+
+                update_mesh_shape_prior_losses(mesh_pr, losses)
+
+                ## loss
+
+                in_tensor['P_normal_F'], in_tensor['P_normal_B'] = dataset.render_normal(
+                    mesh_pr.verts_padded(), mesh_pr.faces_padded()
+                )
+
+                diff_F_cloth = torch.abs(
+                    in_tensor['P_normal_F'] - in_tensor['normal_F']
+                )
+                diff_B_cloth = torch.abs(
+                    in_tensor['P_normal_B'] - in_tensor['normal_B']
+                )
+
+                losses['cloth']['value'] = (diff_F_cloth + diff_B_cloth).mean()
+                losses['stiffness']['value'] = torch.mean(stiffness)
+                losses['rigid']['value'] = torch.mean(rigid)
+
+                cloth_loss = torch.tensor(0.0, requires_grad = True).to(device)
+                pbar_desc = 'Cloth Refinement ---'
+
+                for k in losses.keys():
+                    if k not in ['normal', 'silhouette'] and losses[k]['weight'] > 0.0:
+                        cloth_loss = cloth_loss + losses[k]['value'] * losses[k]['weight']
+                        pbar_desc += f"{k}:{losses[k]['value'] * losses[k]['weight']:.5f} | "
+
+                pbar_desc += f'Total: {cloth_loss:.5f}'
+                loop_cloth.set_description(pbar_desc)
+
+                cloth_loss.backward(retain_graph=True)
+                optimizer_cloth.step()
+                scheduler_cloth.step(cloth_loss)
+
+            final = trimesh.Trimesh(
+                mesh_pr.verts_packed().detach().squeeze(0).cpu(),
+                mesh_pr.faces_packed().detach().squeeze(0).cpu(),
+                process=False,
+                maintains_order=True)
+            final_colors = query_color(
+                mesh_pr.verts_packed().detach().squeeze(0).cpu(),
+                mesh_pr.faces_packed().detach().squeeze(0).cpu(),
+                data['image'],
+                device=device,
+            )
+            final.visual.vertex_colors = final_colors
+            final.export('/jf-training-home/src/result/ICON_2_refine_%s.obj'%data['name'])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
