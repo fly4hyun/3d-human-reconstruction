@@ -1,6 +1,6 @@
 # LVD + ICON + body parts measurement (api)
 
-신체 시추 측정 코드
+신체 치수 측정 코드
 reference : 
 https://github.com/vcarlosrb/3d-body-measurements
 
